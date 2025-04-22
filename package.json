@@ -1,0 +1,18 @@
+{
+  "name": "mllmcelltype-web",
+  "version": "1.0.0",
+  "description": "Web interface for mLLMCelltype",
+  "main": "index.js",
+  "scripts": {
+    "start": "netlify dev",
+    "build": "netlify build"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "http-proxy-middleware": "^2.0.1",
+    "serverless-http": "^2.7.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^8.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  web:
+    image: cafferyyang777/mllmcelltype-web:latest
+    container_name: mllmcelltype-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ./data/results:/app/results
+      - ./data/logs:/app/logs
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      # 以下环境变量需要用户自行设置
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
+      - STEPFUN_API_KEY=${STEPFUN_API_KEY:-}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
+      - MINIMAX_GROUP_ID=${MINIMAX_GROUP_ID:-}
+      - GROK_API_KEY=${GROK_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}

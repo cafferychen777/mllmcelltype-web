@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mLLMCelltype Web</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{[{ url_for('static', filename='css/style.css') }]}">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar" role="navigation" aria-label="main navigation">
+            <div class="container">
+                <div class="navbar-brand">
+                    <a class="navbar-item" href="/">
+                        <i class="fas fa-dna"></i>&nbsp;
+                        <strong>mLLMCelltype Web</strong>
+                    </a>
+                </div>
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <div class="buttons">
+                            <button @click="toggleLanguage" class="button is-light">
+                                <span class="icon">
+                                    <i class="fas fa-language"></i>
+                                </span>
+                                <span>{{ currentLang === 'en' ? '中文' : 'English' }}</span>
+                            </button>
+                            <a href="https://www.biorxiv.org/content/10.1101/2025.04.10.647852v1" target="_blank" class="button is-light">
+                                <span class="icon">
+                                    <i class="fas fa-file-alt"></i>
+                                </span>
+                                <span>{{ t('paper') }}</span>
+                            </a>
+                            <a href="https://github.com/cafferychen777/mLLMCelltype" target="_blank" class="button is-light">
+                                <span class="icon">
+                                    <i class="fab fa-github"></i>
+                                </span>
+                                <span>{{ t('github') }}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container p-4">
+            <!-- 上传页面 -->
+            <div v-if="currentPage === 'upload'">
+                <div class="box animate-slide-in">
+                    <h1 class="title is-4">
+                        <span class="icon-text">
+                            <span class="icon has-text-primary">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </span>
+                            <span>{{ t('uploadTitle') }}</span>
+                        </span>
+                    </h1>
+                    <p class="mb-4">{{ t('uploadDescription') }}</p>
+
+                    <div class="file-upload-area"
+                         :class="{'is-dragover': isDragover}"
+                         @dragover.prevent="isDragover = true"
+                         @dragleave.prevent="isDragover = false"
+                         @drop.prevent="onFileDrop">
+                        <div class="has-text-centered p-6">
+                            <span class="icon is-large">
+                                <i class="fas fa-file-upload fa-3x"></i>
+                            </span>
+                            <p class="mb-4 mt-3">{{ t('dragDropText') }}</p>
+                            <input type="file" ref="fileInput" @change="onFileChange" style="display: none">
+                            <button class="button is-primary" @click="$refs.fileInput.click()">
+                                <span class="icon">
+                                    <i class="fas fa-folder-open"></i>
+                                </span>
+                                <span>{{ t('selectFile') }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="uploadError" class="notification is-danger mt-4">
+                        <button class="delete" @click="uploadError = ''"></button>
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </span>
+                            <span>{{ uploadError }}</span>
+                        </span>
+                    </div>
+
+                    <div v-if="isUploading" class="mt-4">
+                        <progress class="progress is-primary" max="100"></progress>
+                        <p class="has-text-centered">
+                            <span class="icon-text">
+                                <span class="icon is-pulsing">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </span>
+                                <span>{{ t('uploadingText') }}</span>
+                            </span>
+                        </p>
+                    </div>
+
+                    <div class="mt-4 is-flex is-justify-content-space-between">
+                        <div>
+                            <p>
+                                <span class="icon-text">
+                                    <span class="icon has-text-info">
+                                        <i class="fas fa-info-circle"></i>
+                                    </span>
+                                    <span>{{ t('supportedFormats') }}</span>
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <a href="#" @click.prevent="downloadSample" class="button is-small is-info is-light">
+                                <span class="icon">
+                                    <i class="fas fa-download"></i>
+                                </span>
+                                <span>{{ t('downloadSample') }}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 配置页面 -->
+            <div v-if="currentPage === 'configure'">
+                <div class="box animate-slide-in">
+                    <h1 class="title is-4">
+                        <span class="icon-text">
+                            <span class="icon has-text-primary">
+                                <i class="fas fa-cogs"></i>
+                            </span>
+                            <span>{{ t('configTitle') }}</span>
+                        </span>
+                    </h1>
+
+                    <div v-if="dataPreview.length > 0" class="mb-5">
+                        <h2 class="subtitle is-5">{{ t('dataPreviewTitle') }}</h2>
+                        <div class="table-container">
+                            <table class="table is-bordered is-striped is-narrow is-hoverable">
+                                <thead>
+                                    <tr>
+                                        <th v-for="(col, index) in dataColumns" :key="index">{{ col }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, rowIndex) in dataPreview" :key="rowIndex">
+                                        <td v-for="(col, colIndex) in dataColumns" :key="colIndex">
+                                            {{ row[col] }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon has-text-success">
+                                    <i class="fas fa-paw"></i>
+                                </span>
+                                <span>{{ t('speciesLabel') }}</span>
+                            </span>
+                        </label>
+                        <div class="control has-icons-left">
+                            <div class="select is-fullwidth">
+                                <select v-model="species">
+                                    <option value="human">{{ currentLang === 'en' ? 'Human' : '人类 (Human)' }}</option>
+                                    <option value="mouse">{{ currentLang === 'en' ? 'Mouse' : '小鼠 (Mouse)' }}</option>
+                                    <option value="rat">{{ currentLang === 'en' ? 'Rat' : '大鼠 (Rat)' }}</option>
+                                    <option value="zebrafish">{{ currentLang === 'en' ? 'Zebrafish' : '斑马鱼 (Zebrafish)' }}</option>
+                                    <option value="drosophila">{{ currentLang === 'en' ? 'Drosophila' : '果蝇 (Drosophila)' }}</option>
+                                    <option value="c.elegans">{{ currentLang === 'en' ? 'C. elegans' : '线虫 (C. elegans)' }}</option>
+                                </select>
+                            </div>
+                            <span class="icon is-small is-left">
+                                <i class="fas fa-dna"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon has-text-danger">
+                                    <i class="fas fa-heartbeat"></i>
+                                </span>
+                                <span>{{ t('tissueLabel') }}</span>
+                            </span>
+                        </label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" v-model="tissue" :placeholder="t('tissuePlaceholder')">
+                            <span class="icon is-small is-left">
+                                <i class="fas fa-lungs"></i>
+                            </span>
+                        </div>
+                        <p class="help">{{ t('tissueHelp') }}</p>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon has-text-info">
+                                    <i class="fas fa-robot"></i>
+                                </span>
+                                <span>{{ t('modelSelectionLabel') }}</span>
+                            </span>
+                        </label>
+
+                        <div v-for="(provider, index) in availableProviders" :key="provider.id" class="provider-section mb-4">
+                            <div class="field">
+                                <label class="checkbox">
+                                    <input type="checkbox" v-model="provider.selected">
+                                    <span class="ml-2">
+                                        <span class="icon-text">
+                                            <span class="icon" :class="getProviderIconClass(provider.id)">
+                                                <i :class="getProviderIcon(provider.id)"></i>
+                                            </span>
+                                            <span><strong>{{ provider.name }}</strong></span>
+                                        </span>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div v-if="provider.selected" class="ml-4">
+                                <div class="field">
+                                    <label class="label is-small">{{ t('modelLabel') }}</label>
+                                    <div class="control">
+                                        <div class="select is-fullwidth">
+                                            <select v-model="provider.selectedModel">
+                                                <option v-for="model in provider.models" :key="model.id" :value="model.id">
+                                                    {{ model.name }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <label class="label is-small">{{ t('apiKeyLabel') }}</label>
+                                    <div class="control">
+                                        <input class="input" type="password" v-model="provider.apiKey" :placeholder="t('apiKeyPlaceholder')">
+                                    </div>
+                                    <p class="help">{{ t('apiKeyHelp') }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="!hasSelectedProviders" class="notification is-warning">
+                            {{ t('modelWarning') }}
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">{{ t('advancedOptionsLabel') }}</label>
+                        <div class="columns">
+                            <div class="column">
+                                <label class="label is-small">{{ t('consensusThresholdLabel') }}</label>
+                                <div class="control">
+                                    <input class="input" type="number" v-model="consensusThreshold" min="0.1" max="1.0" step="0.1">
+                                </div>
+                                <p class="help">{{ t('consensusThresholdHelp') }}</p>
+                            </div>
+                            <div class="column">
+                                <label class="label is-small">{{ t('maxRoundsLabel') }}</label>
+                                <div class="control">
+                                    <input class="input" type="number" v-model="maxDiscussionRounds" min="1" max="5" step="1">
+                                </div>
+                                <p class="help">{{ t('maxRoundsHelp') }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field is-grouped mt-5">
+                        <div class="control">
+                            <button class="button is-light" @click="currentPage = 'upload'">{{ t('backButton') }}</button>
+                        </div>
+                        <div class="control">
+                            <button class="button is-primary" @click="startAnnotation" :disabled="!canStartAnnotation">{{ t('startAnnotationButton') }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 处理页面 -->
+            <div v-if="currentPage === 'processing'">
+                <div class="box animate-slide-in">
+                    <h1 class="title is-4">
+                        <span class="icon-text">
+                            <span class="icon has-text-primary">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                            <span>{{ t('processingTitle') }}</span>
+                        </span>
+                    </h1>
+
+                    <div class="notification is-info is-light">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                            <span>{{ t('processingDescription') }}</span>
+                        </span>
+                    </div>
+
+                    <progress class="progress is-primary" max="100"></progress>
+
+                    <div class="has-text-centered mt-5 mb-5">
+                        <span class="tag is-primary is-medium">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-clock"></i>
+                                </span>
+                                <span>{{ taskStatus }}</span>
+                            </span>
+                        </span>
+                    </div>
+
+                    <div v-if="processingError" class="notification is-danger mt-4">
+                        <button class="delete" @click="processingError = ''"></button>
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </span>
+                            <span>{{ processingError }}</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结果页面 -->
+            <div v-if="currentPage === 'results'">
+                <div class="box animate-slide-in">
+                    <h1 class="title is-4">
+                        <span class="icon-text">
+                            <span class="icon has-text-success">
+                                <i class="fas fa-check-circle"></i>
+                            </span>
+                            <span>{{ t('resultsTitle') }}</span>
+                        </span>
+                    </h1>
+
+                    <div class="notification is-success is-light mb-4">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                            <span>{{ t('resultsDescription') }}</span>
+                        </span>
+                    </div>
+
+                    <div v-if="results.consensus" class="table-container">
+                        <table class="table is-bordered is-striped is-narrow is-hoverable">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('clusterHeader') }}</th>
+                                    <th>{{ t('cellTypeHeader') }}</th>
+                                    <th>{{ t('consensusHeader') }}</th>
+                                    <th>{{ t('entropyHeader') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(cellType, clusterId) in results.consensus" :key="clusterId">
+                                    <td>{{ clusterId }}</td>
+                                    <td>{{ cellType }}</td>
+                                    <td>{{ results.consensus_proportion[clusterId] !== undefined ? results.consensus_proportion[clusterId] : 'N/A' }}</td>
+                                    <td>{{ results.entropy[clusterId] !== undefined ? results.entropy[clusterId] : 'N/A' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="field is-grouped mt-5 is-justify-content-space-between">
+                        <div class="control">
+                            <button class="button is-light" @click="resetAndStartNew">
+                                <span class="icon-text">
+                                    <span class="icon">
+                                        <i class="fas fa-redo"></i>
+                                    </span>
+                                    <span>{{ t('newAnnotationButton') }}</span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="control">
+                            <div class="buttons">
+                                <button class="button is-info" @click="downloadResults('csv')">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-file-csv"></i>
+                                        </span>
+                                        <span>{{ t('downloadCSV') }}</span>
+                                    </span>
+                                </button>
+                                <button class="button is-info" @click="downloadResults('excel')">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-file-excel"></i>
+                                        </span>
+                                        <span>{{ t('downloadExcel') }}</span>
+                                    </span>
+                                </button>
+                                <button class="button is-info" @click="downloadResults('tsv')">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-file-alt"></i>
+                                        </span>
+                                        <span>{{ t('downloadTSV') }}</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="content has-text-centered">
+                <p>
+                    <span class="icon-text">
+                        <span class="icon">
+                            <i class="fas fa-dna"></i>
+                        </span>
+                        <span><strong>mLLMCelltype Web</strong> - {{ t('footerText') }} <a href="https://github.com/cafferychen777/mLLMCelltype" target="_blank">mLLMCelltype</a> {{ t('lightweightInterface') }}</span>
+                    </span>
+                </p>
+                <p class="mt-2">
+                    <a href="https://github.com/cafferychen777/mLLMCelltype" target="_blank" class="button is-small is-light is-rounded mr-2">
+                        <span class="icon">
+                            <i class="fab fa-github"></i>
+                        </span>
+                        <span>GitHub</span>
+                    </a>
+                    <a href="https://www.biorxiv.org/content/10.1101/2025.04.10.647852v1" target="_blank" class="button is-small is-light is-rounded">
+                        <span class="icon">
+                            <i class="fas fa-file-alt"></i>
+                        </span>
+                        <span>Paper</span>
+                    </a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{[{ url_for('static', filename='js/app.js') }]}"></script>
+</body>
+</html>

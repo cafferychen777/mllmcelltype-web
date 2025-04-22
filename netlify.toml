@@ -1,0 +1,32 @@
+[build]
+  publish = "."
+  command = "npm install && pip install -r requirements.txt && pip install Frozen-Flask==1.0.2 && mkdir -p uploads results logs && chmod -R 777 uploads results logs"
+
+[build.environment]
+  PYTHON_VERSION = "3.9"
+  NODE_VERSION = "16"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/app"
+  status = 200
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  included_files = ["**/*.py"]
+
+[dev]
+  command = "python app.py"
+  port = 8080
+  publish = "."
+  framework = "#custom"
+
+# 确保 Python 可以访问到应用程序文件
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
+# 设置 Python 环境变量
+[context.production.environment]
+  FLASK_ENV = "production"
+  PYTHONPATH = "/opt/build/repo"

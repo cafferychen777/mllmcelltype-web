@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mLLMCelltype Web</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar is-light" role="navigation" aria-label="main navigation">
+            <div class="navbar-brand">
+                <a class="navbar-item" href="/">
+                    <strong>mLLMCelltype Web</strong>
+                </a>
+            </div>
+        </nav>
+
+        <div class="container p-4">
+            <!-- 上传页面 -->
+            <div v-if="currentPage === 'upload'">
+                <div class="box">
+                    <h1 class="title is-4">上传数据文件</h1>
+                    <p class="mb-4">上传包含标记基因的文件进行细胞类型注释。</p>
+                    
+                    <div class="file-upload-area"
+                         :class="{'is-dragover': isDragover}"
+                         @dragover.prevent="isDragover = true"
+                         @dragleave.prevent="isDragover = false"
+                         @drop.prevent="onFileDrop">
+                        <div class="has-text-centered p-6">
+                            <p class="mb-4">拖放文件到此处或点击选择文件</p>
+                            <input type="file" ref="fileInput" @change="onFileChange" style="display: none">
+                            <button class="button is-primary" @click="$refs.fileInput.click()">选择文件</button>
+                        </div>
+                    </div>
+                    
+                    <div v-if="uploadError" class="notification is-danger mt-4">
+                        <button class="delete" @click="uploadError = ''"></button>
+                        {{ uploadError }}
+                    </div>
+                    
+                    <div v-if="isUploading" class="mt-4">
+                        <progress class="progress is-primary" max="100"></progress>
+                        <p class="has-text-centered">上传中，请稍候...</p>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <p>支持的格式: CSV, TSV, Excel</p>
+                        <a href="#" @click.prevent="downloadSample" class="is-link">下载示例数据</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 配置页面 -->
+            <div v-if="currentPage === 'configure'">
+                <div class="box">
+                    <h1 class="title is-4">配置注释参数</h1>
+                    
+                    <div v-if="dataPreview.length > 0" class="mb-5">
+                        <h2 class="subtitle is-5">数据预览:</h2>
+                        <div class="table-container">
+                            <table class="table is-bordered is-striped is-narrow is-hoverable">
+                                <thead>
+                                    <tr>
+                                        <th v-for="(col, index) in dataColumns" :key="index">{{ col }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, rowIndex) in dataPreview" :key="rowIndex">
+                                        <td v-for="(col, colIndex) in dataColumns" :key="colIndex">
+                                            {{ row[col] }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="field">
+                        <label class="label">物种</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select v-model="species">
+                                    <option value="human">人类 (Human)</option>
+                                    <option value="mouse">小鼠 (Mouse)</option>
+                                    <option value="rat">大鼠 (Rat)</option>
+                                    <option value="zebrafish">斑马鱼 (Zebrafish)</option>
+                                    <option value="drosophila">果蝇 (Drosophila)</option>
+                                    <option value="c.elegans">线虫 (C. elegans)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field">
+                        <label class="label">组织类型</label>
+                        <div class="control">
+                            <input class="input" type="text" v-model="tissue" placeholder="例如: 血液, 大脑, 肺">
+                        </div>
+                        <p class="help">提供组织上下文可以提高注释准确性</p>
+                    </div>
+                    
+                    <div class="field">
+                        <label class="label">模型选择</label>
+                        
+                        <div v-for="(provider, index) in availableProviders" :key="provider.id" class="provider-section mb-4">
+                            <div class="field">
+                                <label class="checkbox">
+                                    <input type="checkbox" v-model="provider.selected">
+                                    {{ provider.name }}
+                                </label>
+                            </div>
+                            
+                            <div v-if="provider.selected" class="ml-4">
+                                <div class="field">
+                                    <label class="label is-small">模型</label>
+                                    <div class="control">
+                                        <div class="select is-fullwidth">
+                                            <select v-model="provider.selectedModel">
+                                                <option v-for="model in provider.models" :key="model.id" :value="model.id">
+                                                    {{ model.name }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="field">
+                                    <label class="label is-small">API 密钥</label>
+                                    <div class="control">
+                                        <input class="input" type="password" v-model="provider.apiKey" placeholder="输入 API 密钥">
+                                    </div>
+                                    <p class="help">API 密钥仅在当前会话中使用，不会被存储</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div v-if="!hasSelectedProviders" class="notification is-warning">
+                            请至少选择一个模型提供商
+                        </div>
+                    </div>
+                    
+                    <div class="field">
+                        <label class="label">高级选项</label>
+                        <div class="columns">
+                            <div class="column">
+                                <label class="label is-small">共识阈值</label>
+                                <div class="control">
+                                    <input class="input" type="number" v-model="consensusThreshold" min="0.1" max="1.0" step="0.1">
+                                </div>
+                                <p class="help">模型间达成共识的最小比例 (0.1-1.0)</p>
+                            </div>
+                            <div class="column">
+                                <label class="label is-small">最大讨论轮数</label>
+                                <div class="control">
+                                    <input class="input" type="number" v-model="maxDiscussionRounds" min="1" max="5" step="1">
+                                </div>
+                                <p class="help">模型间讨论的最大轮数 (1-5)</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field is-grouped mt-5">
+                        <div class="control">
+                            <button class="button is-light" @click="currentPage = 'upload'">返回</button>
+                        </div>
+                        <div class="control">
+                            <button class="button is-primary" @click="startAnnotation" :disabled="!canStartAnnotation">开始注释</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 处理页面 -->
+            <div v-if="currentPage === 'processing'">
+                <div class="box">
+                    <h1 class="title is-4">处理中</h1>
+                    <p>正在使用选定的模型进行细胞类型注释...</p>
+                    
+                    <progress class="progress is-primary mt-4" max="100"></progress>
+                    
+                    <p class="has-text-centered mt-4">
+                        <span class="tag is-primary is-medium">{{ taskStatus }}</span>
+                    </p>
+                    
+                    <div v-if="processingError" class="notification is-danger mt-4">
+                        <button class="delete" @click="processingError = ''"></button>
+                        {{ processingError }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 结果页面 -->
+            <div v-if="currentPage === 'results'">
+                <div class="box">
+                    <h1 class="title is-4">注释结果</h1>
+                    
+                    <div v-if="results.consensus" class="table-container">
+                        <table class="table is-bordered is-striped is-narrow is-hoverable">
+                            <thead>
+                                <tr>
+                                    <th>集群</th>
+                                    <th>细胞类型</th>
+                                    <th>共识比例 (CP)</th>
+                                    <th>熵 (H)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(cellType, clusterId) in results.consensus" :key="clusterId">
+                                    <td>{{ clusterId }}</td>
+                                    <td>{{ cellType }}</td>
+                                    <td>{{ results.consensus_proportion[clusterId] !== undefined ? results.consensus_proportion[clusterId] : 'N/A' }}</td>
+                                    <td>{{ results.entropy[clusterId] !== undefined ? results.entropy[clusterId] : 'N/A' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="field is-grouped mt-5">
+                        <div class="control">
+                            <button class="button is-light" @click="resetAndStartNew">新的注释</button>
+                        </div>
+                        <div class="control">
+                            <div class="buttons has-addons">
+                                <button class="button is-info" @click="downloadResults('csv')">下载 CSV</button>
+                                <button class="button is-info" @click="downloadResults('excel')">下载 Excel</button>
+                                <button class="button is-info" @click="downloadResults('tsv')">下载 TSV</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="footer">
+            <div class="content has-text-centered">
+                <p>
+                    <strong>mLLMCelltype Web</strong> - 基于 <a href="https://github.com/cafferychen777/mLLMCelltype" target="_blank">mLLMCelltype</a> 的轻量级 Web 界面
+                </p>
+            </div>
+        </footer>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
