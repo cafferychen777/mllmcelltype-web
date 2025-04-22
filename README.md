@@ -122,17 +122,24 @@ If you encounter issues:
 
 ## Citation
 
-If you use mLLMCelltype in your research, please cite our paper:
+If you use mLLMCelltype in your research, please cite:
 
 ```bibtex
-@article{yang2025mllmcelltype,
-  title={mLLMCelltype: Enhancing Single-Cell Annotation with Multi-LLM Consensus and Discussion},
-  author={Yang, Chen and others},
-  journal={bioRxiv},
-  year={2025},
-  doi={10.1101/2025.04.10.647852}
+@article{Yang2025.04.10.647852,
+  author = {Yang, Chen and Zhang, Xianyang and Chen, Jun},
+  title = {Large Language Model Consensus Substantially Improves the Cell Type Annotation Accuracy for scRNA-seq Data},
+  elocation-id = {2025.04.10.647852},
+  year = {2025},
+  doi = {10.1101/2025.04.10.647852},
+  publisher = {Cold Spring Harbor Laboratory},
+  URL = {https://www.biorxiv.org/content/early/2025/04/17/2025.04.10.647852},
+  journal = {bioRxiv}
 }
 ```
+
+You can also cite this in plain text format:
+
+Yang, C., Zhang, X., & Chen, J. (2025). Large Language Model Consensus Substantially Improves the Cell Type Annotation Accuracy for scRNA-seq Data. *bioRxiv*. https://doi.org/10.1101/2025.04.10.647852
 
 ## License
 
